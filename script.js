@@ -713,6 +713,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const createBtn = document.getElementById("btn-create-room");
   const joinBtn = document.getElementById("btn-join-room");
   const deleteRoomBtn = document.getElementById("btn-delete-room");
+  const offlineBtn = document.getElementById("btn-offline-mode");
+
+  if (offlineBtn) {
+    offlineBtn.addEventListener("click", () => {
+      currentRoomId = null;
+      myColor = null;
+      updateBoardRotation();
+      document.getElementById("lobby-modal").style.display = "none";
+    });
+  }
 
   // 1. ルーム作成 (先手: 黒 になる)
   if (createBtn) {
@@ -747,12 +757,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentRoomId = data.id;
       myColor = "black";
-      updateBoardRotation(); // 黒陣営（先手）なので盤面を回転
+      updateBoardRotation();
 
       console.log("[LOG] 部屋を作成しました:", data);
-      alert(`部屋を作成しました！
-部屋コード: ${data.room_code}
-あなたは【黒 (先手)】です。相手の入室を待っています...`);
+      alert(`部屋を作成しました！\n部屋コード: ${data.room_code}\nあなたは【黒 (先手)】です。相手の入室を待っています...`);
       document.getElementById("lobby-modal").style.display = "none";
       subscribeToRoomUpdates(currentRoomId);
     });
@@ -795,7 +803,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentRoomId = data.id;
       myColor = "white";
-      updateBoardRotation(); // 白陣営（後手）なので盤面を通常（回転なし）に
+      updateBoardRotation();
 
       console.log("[LOG] 部屋に参加しました:", data);
       alert(`部屋に参加しました！あなたは【白 (後手)】です。`);
@@ -824,20 +832,29 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!supabase2) return;
 
     console.log(`[LOG] Realtime 購読を開始します... ルームID: ${roomId}`);
-    
-    roomChannel = supabase2.channel(`room:${roomId}`)
+
+    roomChannel = supabase2.channel(`room:${roomId}`, {
+      config: {
+        presence: {
+          key: myColor,
+        },
+      },
+    });
+
+    roomChannel
+      .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
+        console.log(`[LOG] プレイヤーが切断/離脱しました: ${key}`, leftPresences);
+        // どちらか片方でも離脱したら部屋をデータベースから消去
+        if (currentRoomId && supabase2) {
+          await supabase2.from('rooms').delete().eq('id', currentRoomId);
+        }
+      })
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
         (payload) => {
           console.log("[LOG] 部屋データの更新を受信しました:", payload.new);
           const roomData = payload.new;
-
-          if (myColor === 'white' && !roomData.black_present) {
-            alert("ホスト（黒陣営）が退出したため、部屋を閉じました。");
-            leaveRoomAndReset();
-            return;
-          }
 
           if (roomData.game_state) {
             applyGameState(roomData.game_state);
@@ -849,12 +866,15 @@ document.addEventListener("DOMContentLoaded", () => {
         { event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
         (payload) => {
           console.log("[LOG] 部屋が削除されました:", payload);
-          alert("対戦相手がサイトを閉じた（またはルームを削除した）ため、部屋を閉じました。");
+          alert("対戦相手がサイトを閉じた（または離脱した）ため、部屋を削除しました。");
           leaveRoomAndReset();
         }
       )
-      .subscribe((status) => {
+      .subscribe(async (status) => {
         console.log(`[LOG] Realtime 接続ステータス: ${status}`);
+        if (status === 'SUBSCRIBED') {
+          await roomChannel.track({ color: myColor, online_at: new Date().toISOString() });
+        }
       });
   }
 
@@ -875,20 +895,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // ページが隠れたり閉じられる直前にデータベースのステータスを更新
-  window.addEventListener('pagehide', async () => {
+  // ページが閉じる・リロードされる直前に部屋を削除
+  async function destroyRoomOnLeave() {
     if (!currentRoomId || !supabase2) return;
-    if (myColor === 'black') {
-      await supabase2.from('rooms').delete().eq('id', currentRoomId);
-    } else if (myColor === 'white') {
-      await supabase2.from('rooms').update({ white_present: false }).eq('id', currentRoomId);
-    }
-  });
+    await supabase2.from('rooms').delete().eq('id', currentRoomId);
+  }
+
+  window.addEventListener('pagehide', destroyRoomOnLeave);
+  window.addEventListener('beforeunload', destroyRoomOnLeave);
 
   function leaveRoomAndReset() {
     currentRoomId = null;
     myColor = null;
-    updateBoardRotation(); // リセット時にデフォルト状態へ戻す
+    updateBoardRotation();
     if (roomChannel) {
       supabase2.removeChannel(roomChannel);
     }
