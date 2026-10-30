@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>終末盤戯</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="script.js"></script>
+</head>
+<body>
+  <!-- 右上ルールボタン -->
+  <button id="rule-btn" class="rule-button">📖 ルール説明</button>
+  
+  <div class="game-container">
+    <!-- サイドパネル（ステータス表示） -->
+    <aside class="panel">
+      <h1>終末盤戯</h1>
+      
+      <div class="status-box">
+        <h3>ゲーム状態</h3>
+        <p>手番: <span id="turn-display">黒 (先手)</span></p>
+        <p>救世主効果: <span id="savior-status">未降臨</span></p>
+        <p>信徒進化段階: <span id="evolution-status">信徒</span></p>
+      </div>
+
+      <div class="players-wrapper">
+        <div class="player-status player-black">
+          <h2>先手：黒陣営</h2>
+          <p>魂ポイント: <span id="tp-black">0</span> / 20</p>
+          <div class="gauge"><div id="gauge-black" class="fill"></div></div>
+        </div>
+
+        <div class="player-status player-white">
+          <h2>後手：白陣営</h2>
+          <p>魂ポイント: <span id="tp-white">0</span> / 20</p>
+          <div class="gauge"><div id="gauge-white" class="fill"></div></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 17x17 メイン盤面 -->
+    <main class="board-container">
+      <div id="board" class="board"></div>
+    </main>
+  </div>
+
+  <!-- ルール説明モーダル -->
+  <div id="rule-modal" class="modal">
+    <div class="modal-content">
+      <span id="close-modal" class="close-btn">&times;</span>
+      <h2>【終末盤戯】ルール説明</h2>
+      
+      <div class="modal-body">
+        <section>
+          <h3>基本ルール & 勝利条件</h3>
+          <ul>
+            <li>17×17のマスの盤上で戦う1対1のターン制ゲームです。</li>
+            <li>勝利条件：相手の盤面最奥にいる<b>【魔王】</b>を捕獲（撃破）すること。</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>魂ポイント (TP) & 救世主システム</h3>
+          <p>相手の駒を撃破すると、駒の強力さに応じて<b>魂ポイント</b>を獲得します。</p>
+          
+          <table class="rule-table">
+            <thead>
+              <tr>
+                <th>獲得TP</th>
+                <th>対象となる駒</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>4 pt</b></td>
+                <td>【龍王】【星喰い】</td>
+              </tr>
+              <tr>
+                <td><b>3 pt</b></td>
+                <td>【天使】【堕天使】【死神】</td>
+              </tr>
+              <tr>
+                <td><b>2 pt</b></td>
+                <td>【審問官】【騎士】/ 【教信者】【凶獣】【終末の獣】(進化後の信徒系)</td>
+              </tr>
+              <tr>
+                <td><b>1 pt</b></td>
+                <td>【信徒】(初期状態)</td>
+              </tr>
+              <tr>
+                <td><b>0 pt</b></td>
+                <td>【魔王】(撃破時点で即勝利)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <ul>
+            <li><b>救世主の降臨</b>：自陣の魂ポイントが<b>20pt</b>蓄積するごとに発動。</li>
+            <li><b>効果</b>：3ターンの間、「魔王・天使・信徒系列」を除く味方駒の移動距離が<b>1.5倍</b>（端数切り上げ）に強化されます。</li>
+            <li><b>降臨終了時の【縮退】</b>：3ターン経過後、救世主が消滅すると同時に<b>盤面の外周1周分が消滅</b>します（マス上の駒は即死）。</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>信徒の進化 & 縮退</h3>
+          <ul>
+            <li><b>信徒系の縮退発生</b>：自陣営の信徒系列の駒（信徒/教信者/凶獣/終末の獣）が<b>陣営ごとに累計2体撃破されるごと</b>に縮退が発生します。</li>
+            <li><b>信徒の段階進化</b>：救世主の累計降臨回数に応じて全信徒系が【信徒】→【教信者】→【凶獣】→【終末の獣】へと強化されます。</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>全12種類の駒の動き一覧 (全9×9表示)</h3>
+          <p class="legend">※ 駒の名前をクリックすると9×9の移動詳細が開きます。<br>（🟢＝移動のみ / 🔴＝捕獲のみ / 🟡＝移動＆捕獲両用）</p>
+          
+          <div class="piece-accordion-list">
+            <!-- 1. 魔王 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【魔王】(1体 / 0pt)</summary>
+              <div class="piece-card-content">
+                <p>全8方向に1マス移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="demon_king"></div>
+              </div>
+            </details>
+
+            <!-- 2. 天使 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【天使】(2体 / 3pt)</summary>
+              <div class="piece-card-content">
+                <p>斜め4方向に直線無限移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="angel"></div>
+              </div>
+            </details>
+
+            <!-- 3. 堕天使 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【堕天使】(1体 / 3pt)</summary>
+              <div class="piece-card-content">
+                <p>全8方向に最大4マス移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="fallen"></div>
+              </div>
+            </details>
+
+            <!-- 4. 審問官 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【審問官】(2体 / 2pt)</summary>
+              <div class="piece-card-content">
+                <p>縦横4方向に最大6マス移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="inquisitor"></div>
+              </div>
+            </details>
+
+            <!-- 5. 騎士 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【騎士】(2体 / 2pt)</summary>
+              <div class="piece-card-content">
+                <p>L字8方向（チェスのナイト）。跳び越し可。</p>
+                <div class="mini-grid grid-9x9" data-piece="knight"></div>
+              </div>
+            </details>
+
+            <!-- 6. 死神 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【死神】(2体 / 3pt)</summary>
+              <div class="piece-card-content">
+                <p>斜め2マス先の位置へ跳び越し移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="reaper"></div>
+              </div>
+            </details>
+
+            <!-- 7. 龍王 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【龍王】(1体 / 4pt)</summary>
+              <div class="piece-card-content">
+                <p>縦4マス×横3列（前後4マス ＋ 左右1マス）移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="dragon"></div>
+              </div>
+            </details>
+
+            <!-- 8. 星喰い -->
+            <details class="piece-details">
+              <summary class="piece-summary">【星喰い】(2体 / 4pt)</summary>
+              <div class="piece-card-content">
+                <p>縦3行×横4マス（左右4マス ＋ 前後1マス）移動・捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="stareater"></div>
+              </div>
+            </details>
+
+            <!-- 9. 信徒 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【信徒】(初期 / 1pt)</summary>
+              <div class="piece-card-content">
+                <p>前方最大2マス移動(緑)、斜め1マス捕獲(赤)。</p>
+                <div class="mini-grid grid-9x9" data-piece="believer"></div>
+              </div>
+            </details>
+
+            <!-- 10. 教信者 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【教信者】(1降臨 / 2pt)</summary>
+              <div class="piece-card-content">
+                <p>前方2マス移動、正面1・斜め1マス捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="fanatic"></div>
+              </div>
+            </details>
+
+            <!-- 11. 凶獣 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【凶獣】(2降臨 / 2pt)</summary>
+              <div class="piece-card-content">
+                <p>前2/後1/左右1移動・捕獲、斜め1捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="beast"></div>
+              </div>
+            </details>
+
+            <!-- 12. 終末の獣 -->
+            <details class="piece-details">
+              <summary class="piece-summary">【終末の獣】(3+降臨 / 2pt)</summary>
+              <div class="piece-card-content">
+                <p>前後2/左右2移動・捕獲、斜め1捕獲。</p>
+                <div class="mini-grid grid-9x9" data-piece="apocalypse_beast"></div>
+              </div>
+            </details>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- モード選択 / ロビー用モーダル -->
+  <div id="lobby-modal" class="modal" style="display: flex;">
+    <div class="modal-content lobby-modal-content">
+      <h2>終末盤戯 モード選択</h2>
+      
+      <div class="lobby-section">
+        <h3>オフライン対戦</h3>
+        <p class="mode-desc">1台の端末で2人で交互にプレイします。</p>
+        <button id="btn-offline-mode" class="btn-success">オフラインで遊ぶ</button>
+      </div>
+
+      <hr class="lobby-divider">
+
+      <h2>オンライン対戦</h2>
+      
+      <div class="lobby-section">
+        <h3>ルームを作成する</h3>
+        <input type="text" id="create-room-code" placeholder="部屋コード (例: room123)">
+        <input type="password" id="create-room-pass" placeholder="パスワード">
+        <button id="btn-create-room" class="btn-primary">部屋を作成</button>
+      </div>
+
+      <hr class="lobby-divider">
+
+      <div class="lobby-section">
+        <h3>ルームに参加する</h3>
+        <input type="text" id="join-room-code" placeholder="部屋コード">
+        <input type="password" id="join-room-pass" placeholder="パスワード">
+        <button id="btn-join-room" class="btn-primary">部屋に入る</button>
+      </div>
+
+      <hr class="lobby-divider">
+
+      <div class="lobby-section">
+        <h3>対戦終了・離脱</h3>
+        <button id="btn-delete-room" class="btn-danger">ゲーム終了 / ルーム消去</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
