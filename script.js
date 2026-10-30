@@ -159,11 +159,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (dr === -1 && absC === 1) return "red";
         return null;
 
-      case "fanatic":
-        if (dc === 0 && dr >= -2 && dr < 0) return "green";
-        if (dr === -1 && absC <= 1) return "red";
-        return null;
-
       case "beast":
         if ((dr >= -2 && dr < 0 && dc === 0) || (dr === 1 && dc === 0) || (dr === 0 && absC === 1)) return "yellow";
         if (absR === 1 && absC === 1) return "red";
@@ -329,6 +324,41 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
+    // 龍王・星喰い専用の厳密な経路・遮蔽チェック関数
+    const directionalRaycastMoves = (baseMoves) => {
+      const maxDist = calcDist(4);
+
+      baseMoves.forEach(([dr, dc]) => {
+        const absDr = Math.abs(dr);
+        const absDc = Math.abs(dc);
+        const maxOffset = Math.max(absDr, absDc);
+
+        if (maxOffset > maxDist) return;
+
+        const stepR = Math.sign(dr);
+        const stepC = Math.sign(dc);
+
+        // 途中経路（1歩目から目的地の手前まで）に遮蔽物（他の駒や縮退マス）がないか確認
+        let pathBlocked = false;
+        for (let s = 1; s < maxOffset; s++) {
+          const intermediateR = r + Math.round(stepR * (absDr * (s / maxOffset)));
+          const intermediateC = c + Math.round(stepC * (absDc * (s / maxOffset)));
+
+          const checkCell = getCell(intermediateR, intermediateC);
+          if (!checkCell || checkCell.classList.contains("collapsed") || checkCell.querySelector(".piece")) {
+            pathBlocked = true;
+            break;
+          }
+        }
+
+        if (!pathBlocked) {
+          const targetR = r + dr;
+          const targetC = c + dc;
+          checkTargetCell(targetR, targetC, color, true, true);
+        }
+      });
+    };
+
     switch (type) {
       case "demon_king":
         raycast([[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], 1);
@@ -363,29 +393,33 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
 
       case "dragon":
-        const dDist = calcDist(4);
-        let dragonMoves = [];
-        for (let dr = -dDist; dr <= dDist; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr !== 0 || dc !== 0) {
-              dragonMoves.push([r + dr, c + dc]);
+        {
+          const dDist = calcDist(4);
+          let dragonMoves = [];
+          for (let dr = -dDist; dr <= dDist; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (dr !== 0 || dc !== 0) {
+                dragonMoves.push([dr, dc]);
+              }
             }
           }
+          directionalRaycastMoves(dragonMoves);
         }
-        jumpMove(dragonMoves);
         break;
 
       case "stareater":
-        const sDist = calcDist(4);
-        let starMoves = [];
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -sDist; dc <= sDist; dc++) {
-            if (dr !== 0 || dc !== 0) {
-              starMoves.push([r + dr, c + dc]);
+        {
+          const sDist = calcDist(4);
+          let starMoves = [];
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -sDist; dc <= sDist; dc++) {
+              if (dr !== 0 || dc !== 0) {
+                starMoves.push([dr, dc]);
+              }
             }
           }
+          directionalRaycastMoves(starMoves);
         }
-        jumpMove(starMoves);
         break;
 
       case "believer":
@@ -541,8 +575,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function checkSaviorTrigger(team, totalPts) {
-    if (totalPts > 0 && totalPts % 20 === 0) {
-      saviorCount++;
+    const targetCount = Math.floor(totalPts / 20);
+    if (targetCount > saviorCount) {
+      saviorCount = targetCount;
       activeSavior = { team: team, turnsLeft: 3, pendingCollapse: false, triggerTeam: null };
 
       let evoText = "信徒";
@@ -557,7 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
         p.innerText = evoText.substring(0, 1);
       });
 
-      alert(`魂ポイントが20点に到達！【救世主】が降臨しました！
+      alert(`魂ポイントが20点以上に到達（計${totalPts}pt）！【救世主】が降臨しました！
 3ターンの間移動力1.5倍＆信徒が【${evoText}】に進化！`);
     }
   }
