@@ -5,6 +5,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let supabase2 = null;
 let currentRoomId = null;
 let myColor = null; // "black" または "white"
+let roomChannel = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   // Supabaseクライアントの安全な初期化
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const board = document.getElementById("board");
+  const boardContainer = document.querySelector(".board-container");
   const BOARD_SIZE = 17;
 
   let currentTurn = "black";
@@ -63,6 +65,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupInitialPieces();
   render9x9MiniGrids();
+
+  // 陣営に応じた盤面の回転状態を更新する関数
+  function updateBoardRotation() {
+    if (!boardContainer) return;
+    // 先手（黒陣営）の場合は盤面を回転させる（オンライン対戦の黒陣営、またはオフライン）
+    if (myColor === "black" || myColor === null) {
+      boardContainer.classList.add("rotated");
+    } else {
+      boardContainer.classList.remove("rotated");
+    }
+  }
+
+  // 初期状態ではオフライン想定（または未選択）のため黒視点として回転を反映
+  updateBoardRotation();
 
   // 9x9 ミニ盤面の動的生成処理
   function render9x9MiniGrids() {
@@ -541,7 +557,8 @@ document.addEventListener("DOMContentLoaded", () => {
         p.innerText = evoText.substring(0, 1);
       });
 
-      alert(`魂ポイントが20点に到達！【救世主】が降臨しました！\n3ターンの間移動力1.5倍＆信徒が【${evoText}】に進化！`);
+      alert(`魂ポイントが20点に到達！【救世主】が降臨しました！
+3ターンの間移動力1.5倍＆信徒が【${evoText}】に進化！`);
     }
   }
 
@@ -695,6 +712,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ----------------------------------------------------
   const createBtn = document.getElementById("btn-create-room");
   const joinBtn = document.getElementById("btn-join-room");
+  const deleteRoomBtn = document.getElementById("btn-delete-room");
 
   // 1. ルーム作成 (先手: 黒 になる)
   if (createBtn) {
@@ -729,12 +747,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentRoomId = data.id;
       myColor = "black";
+      updateBoardRotation(); // 黒陣営（先手）なので盤面を回転
 
       console.log("[LOG] 部屋を作成しました:", data);
-      console.log(`[LOG] ルームID: ${data.id}`);
-      console.log(`[LOG] 割り当てられた陣営: ${myColor} (先手)`);
-
-      alert(`部屋を作成しました！\n部屋コード: ${data.room_code}\nあなたは【黒 (先手)】です。相手の入室を待っています...`);
+      alert(`部屋を作成しました！
+部屋コード: ${data.room_code}
+あなたは【黒 (先手)】です。相手の入室を待っています...`);
       document.getElementById("lobby-modal").style.display = "none";
       subscribeToRoomUpdates(currentRoomId);
     });
@@ -777,11 +795,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentRoomId = data.id;
       myColor = "white";
+      updateBoardRotation(); // 白陣営（後手）なので盤面を通常（回転なし）に
 
       console.log("[LOG] 部屋に参加しました:", data);
-      console.log(`[LOG] ルームID: ${data.id}`);
-      console.log(`[LOG] 割り当てられた陣営: ${myColor} (後手)`);
-
       alert(`部屋に参加しました！あなたは【白 (後手)】です。`);
       document.getElementById("lobby-modal").style.display = "none";
 
@@ -790,22 +806,51 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // 3. 部屋削除 / ゲーム終了ボタン
+  if (deleteRoomBtn) {
+    deleteRoomBtn.addEventListener("click", async () => {
+      if (currentRoomId && supabase2) {
+        await supabase2.from('rooms').delete().eq('id', currentRoomId);
+      }
+      alert("ルームを消去しました。");
+      location.reload();
+    });
+  }
+
   // ----------------------------------------------------
-  // Realtime リアルタイム同期ロジック
+  // Realtime リアルタイム同期 & 切断（サイト閉じ）検知ロジック
   // ----------------------------------------------------
   function subscribeToRoomUpdates(roomId) {
     if (!supabase2) return;
 
     console.log(`[LOG] Realtime 購読を開始します... ルームID: ${roomId}`);
-    supabase2
-      .channel(`room:${roomId}`)
+    
+    roomChannel = supabase2.channel(`room:${roomId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
         (payload) => {
-          console.log("[LOG] 相手の操作（盤面更新）を受信しました:", payload.new);
-          const newGameState = payload.new.game_state;
-          applyGameState(newGameState);
+          console.log("[LOG] 部屋データの更新を受信しました:", payload.new);
+          const roomData = payload.new;
+
+          if (myColor === 'white' && !roomData.black_present) {
+            alert("ホスト（黒陣営）が退出したため、部屋を閉じました。");
+            leaveRoomAndReset();
+            return;
+          }
+
+          if (roomData.game_state) {
+            applyGameState(roomData.game_state);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
+        (payload) => {
+          console.log("[LOG] 部屋が削除されました:", payload);
+          alert("対戦相手がサイトを閉じた（またはルームを削除した）ため、部屋を閉じました。");
+          leaveRoomAndReset();
         }
       )
       .subscribe((status) => {
@@ -817,8 +862,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!currentRoomId || !supabase2) return;
 
     const gameState = getCurrentGameState();
-    console.log("[LOG] 盤面更新データを送信中...", gameState);
-
     const { error } = await supabase2
       .from('rooms')
       .update({
@@ -829,8 +872,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (error) {
       console.error("[LOG] 盤面データの送信に失敗しました:", error);
-    } else {
-      console.log("[LOG] 盤面データを送信しました");
     }
+  }
+
+  // ページが隠れたり閉じられる直前にデータベースのステータスを更新
+  window.addEventListener('pagehide', async () => {
+    if (!currentRoomId || !supabase2) return;
+    if (myColor === 'black') {
+      await supabase2.from('rooms').delete().eq('id', currentRoomId);
+    } else if (myColor === 'white') {
+      await supabase2.from('rooms').update({ white_present: false }).eq('id', currentRoomId);
+    }
+  });
+
+  function leaveRoomAndReset() {
+    currentRoomId = null;
+    myColor = null;
+    updateBoardRotation(); // リセット時にデフォルト状態へ戻す
+    if (roomChannel) {
+      supabase2.removeChannel(roomChannel);
+    }
+    document.getElementById("lobby-modal").style.display = "flex";
   }
 });
