@@ -1,11 +1,10 @@
 const SUPABASE_URL = 'https://gktlnfifydbauetttewr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrdGxuZmlmeWRiYXVldHR0ZXdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3setPointSizeMTQyNDczMCwiZXhwIjoyMTA3MDAwNzMwfQ.Txq0iymbWJiUpmWQRCDzYID6hsbG7tt1mAF-p2LCpHg';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdrdGxuZmlmeWRiYXVldHR0ZXdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MjQ3MzAsImV4cCI6MjEwNzAwMDczMH0.Txq0iymbWJiUpmWQRCDzYID6hsbG7tt1mAF-p2LCpHg';
 
 // グローバル変数
 let supabase2 = null;
 let currentRoomId = null;
-let myColor = null; // "black" または "white"（オフライン時は null）
-let isOfflineMode = false;
+let myColor = null; // "black" または "white"
 
 document.addEventListener("DOMContentLoaded", () => {
   // Supabaseクライアントの安全な初期化
@@ -25,11 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let saviorCount = 0;
   let activeSavior = null;
-  
+
   // 陣営ごとに独立して信徒系の撃破数を管理
   let blackBelieverDefeated = 0;
   let whiteBelieverDefeated = 0;
-  
+
   let collapseLevel = 0;
 
   // モーダル処理
@@ -50,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let col = 0; col < BOARD_SIZE; col++) {
       const cell = document.createElement("div");
       cell.classList.add("cell");
-      
+
       if ((row + col) % 2 === 0) cell.classList.add("light");
       else cell.classList.add("dark");
 
@@ -72,9 +71,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const centerC = 4;
 
     miniGrids.forEach(grid => {
-      grid.innerHTML = "";
       const pType = grid.dataset.piece;
-      
+
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           const cell = document.createElement("div");
@@ -165,34 +163,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function resetGameState() {
-    currentTurn = "black";
-    selectedCell = null;
-    blackSoulPoints = 0;
-    whiteSoulPoints = 0;
-    saviorCount = 0;
-    activeSavior = null;
-    blackBelieverDefeated = 0;
-    whiteBelieverDefeated = 0;
-    collapseLevel = 0;
-
-    document.getElementById("turn-display").innerText = "黒 (先手)";
-    document.getElementById("savior-status").innerText = "未降臨";
-    document.getElementById("evolution-status").innerText = "信徒";
-    document.getElementById("tp-black").innerText = "0";
-    document.getElementById("tp-white").innerText = "0";
-    document.getElementById("gauge-black").style.width = "0%";
-    document.getElementById("gauge-white").style.width = "0%";
-
-    document.querySelectorAll(".cell").forEach(c => {
-      c.innerHTML = "";
-      c.classList.remove("collapsed", "selected", "movable", "capturable");
-    });
-
-    setupInitialPieces();
-    updateBoardRotation();
-  }
-
   function setupInitialPieces() {
     const backRowPieces = [
       { col: 2, label: "騎", type: "knight" },
@@ -235,8 +205,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleCellClick(cell) {
-    if (!isOfflineMode && myColor && currentTurn !== myColor) {
-      return; 
+    if (myColor && currentTurn !== myColor) {
+      return;
     }
 
     if (cell.classList.contains("collapsed")) return;
@@ -258,7 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (cell.classList.contains("movable") || cell.classList.contains("capturable")) {
         movePiece(selectedCell, cell);
       }
-      
+
       deselectAll();
       return;
     }
@@ -343,51 +313,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
-    const raycastComplex = (moveOffsets) => {
-      moveOffsets.forEach(([targetDr, targetDc]) => {
-        const absR = Math.abs(targetDr);
-        const absC = Math.abs(targetDc);
-        const steps = Math.max(absR, absC);
-        if (steps === 0) return;
-
-        const stepR = targetDr === 0 ? 0 : targetDr / steps;
-        const stepC = targetDc === 0 ? 0 : targetDc / steps;
-
-        let pathBlocked = false;
-        for (let i = 1; i <= steps; i++) {
-          const nr = r + Math.round(stepR * i);
-          const nc = c + Math.round(stepC * i);
-
-          if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
-            pathBlocked = true;
-            break;
-          }
-
-          const targetCell = getCell(nr, nc);
-          if (!targetCell || targetCell.classList.contains("collapsed")) {
-            pathBlocked = true;
-            break;
-          }
-
-          const targetPiece = targetCell.querySelector(".piece");
-          if (targetPiece) {
-            if (i === steps) {
-              if (targetPiece.dataset.color !== color) {
-                targetCell.classList.add("capturable");
-              }
-            } else {
-              pathBlocked = true;
-            }
-            break;
-          } else {
-            if (i === steps) {
-              targetCell.classList.add("movable");
-            }
-          }
-        }
-      });
-    };
-
     switch (type) {
       case "demon_king":
         raycast([[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]], 1);
@@ -422,33 +347,29 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
 
       case "dragon":
-        {
-          const dDist = calcDist(4);
-          let dragonOffsets = [];
-          for (let dr = -dDist; dr <= dDist; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-              if (dr !== 0 || dc !== 0) {
-                dragonOffsets.push([dr, dc]);
-              }
+        const dDist = calcDist(4);
+        let dragonMoves = [];
+        for (let dr = -dDist; dr <= dDist; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr !== 0 || dc !== 0) {
+              dragonMoves.push([r + dr, c + dc]);
             }
           }
-          raycastComplex(dragonOffsets);
         }
+        jumpMove(dragonMoves);
         break;
 
       case "stareater":
-        {
-          const sDist = calcDist(4);
-          let starOffsets = [];
-          for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -sDist; dc <= sDist; dc++) {
-              if (dr !== 0 || dc !== 0) {
-                starOffsets.push([dr, dc]);
-              }
+        const sDist = calcDist(4);
+        let starMoves = [];
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -sDist; dc <= sDist; dc++) {
+            if (dr !== 0 || dc !== 0) {
+              starMoves.push([r + dr, c + dc]);
             }
           }
-          raycastComplex(starOffsets);
         }
+        jumpMove(starMoves);
         break;
 
       case "believer":
@@ -542,7 +463,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (activeSavior && activeSavior.team === currentTurn && !activeSavior.pendingCollapse) {
       activeSavior.turnsLeft--;
-      
+
       if (activeSavior.turnsLeft > 0) {
         document.getElementById("savior-status").innerText = `${activeSavior.team === "black" ? "黒" : "白"}降臨中 (残り${activeSavior.turnsLeft}ターン)`;
       } else {
@@ -556,11 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
     currentTurn = currentTurn === "black" ? "white" : "black";
     document.getElementById("turn-display").innerText = currentTurn === "black" ? "黒 (先手)" : "白 (後手)";
 
-    updateBoardRotation();
-
-    if (!isOfflineMode) {
-      broadcastGameState();
-    }
+    broadcastGameState();
   }
 
   function handleCapture(capturedPiece) {
@@ -604,19 +521,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (pType === "demon_king") {
       alert(`魔王が捕獲されました！${currentTurn === "black" ? "黒陣営" : "白陣営"}の勝利です！`);
-      finishGame();
     }
   }
 
-  // ----------------------------------------------------
-  // 【修正済み】20ポイント超過でも確実に発動するトリガー判定
-  // ----------------------------------------------------
   function checkSaviorTrigger(team, totalPts) {
-    const requiredPts = (saviorCount + 1) * 20;
-    if (totalPts >= requiredPts) {
+    if (totalPts > 0 && totalPts % 20 === 0) {
       saviorCount++;
       activeSavior = { team: team, turnsLeft: 3, pendingCollapse: false, triggerTeam: null };
-      
+
       let evoText = "信徒";
       if (saviorCount === 1) evoText = "教信者";
       else if (saviorCount === 2) evoText = "凶獣";
@@ -624,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       document.getElementById("evolution-status").innerText = evoText;
       document.getElementById("savior-status").innerText = `${team === "black" ? "黒" : "白"}降臨中 (残り3ターン)`;
-      
+
       document.querySelectorAll('.piece[data-type="believer"]').forEach(p => {
         p.innerText = evoText.substring(0, 1);
       });
@@ -650,7 +562,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (piece) {
               if (piece.dataset.type === "demon_king") {
                 alert(`【縮退】により${piece.dataset.color === "black" ? "黒" : "白"}の魔王が消滅しました！ゲーム終了！`);
-                finishGame();
               }
               cell.removeChild(piece);
             }
@@ -661,55 +572,131 @@ document.addEventListener("DOMContentLoaded", () => {
     collapseLevel++;
   }
 
-  function finishGame() {
-    if (isOfflineMode) {
-      document.getElementById("lobby-modal").style.display = "flex";
-    } else {
-      deleteCurrentRoom();
+  // ----------------------------------------------------
+  // ゲーム状態の取得・復元・同期用関数
+  // ----------------------------------------------------
+
+  function getCurrentGameState() {
+    const boardState = [];
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      const rowState = [];
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        const cell = getCell(r, c);
+        const isCollapsed = cell.classList.contains("collapsed");
+        const piece = cell.querySelector(".piece");
+        let pieceData = null;
+        if (piece) {
+          pieceData = {
+            type: piece.dataset.type,
+            color: piece.dataset.color,
+            label: piece.dataset.label
+          };
+        }
+        rowState.push({
+          collapsed: isCollapsed,
+          piece: pieceData
+        });
+      }
+      boardState.push(rowState);
     }
-  }
 
-  function deleteRoomOnUnload() {
-    if (!currentRoomId || isOfflineMode) return;
-
-    const url = `${SUPABASE_URL}/rest/v1/rooms?id=eq.${currentRoomId}`;
-    const headers = {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json'
+    return {
+      turn: currentTurn,
+      blackSoulPoints: blackSoulPoints,
+      whiteSoulPoints: whiteSoulPoints,
+      saviorCount: saviorCount,
+      activeSavior: activeSavior,
+      blackBelieverDefeated: blackBelieverDefeated,
+      whiteBelieverDefeated: whiteBelieverDefeated,
+      collapseLevel: collapseLevel,
+      board: boardState
     };
+  }
 
-    try {
-      fetch(url, {
-        method: 'DELETE',
-        headers: headers,
-        keepalive: true
-      });
-    } catch (e) {
-      console.error("Unload delete failed:", e);
+  function getInitialGameState() {
+    return getCurrentGameState();
+  }
+
+  function applyGameState(state) {
+    if (!state) return;
+
+    currentTurn = state.turn;
+    blackSoulPoints = state.blackSoulPoints || 0;
+    whiteSoulPoints = state.whiteSoulPoints || 0;
+    saviorCount = state.saviorCount || 0;
+    activeSavior = state.activeSavior || null;
+    blackBelieverDefeated = state.blackBelieverDefeated || 0;
+    whiteBelieverDefeated = state.whiteBelieverDefeated || 0;
+    collapseLevel = state.collapseLevel || 0;
+
+    // UIパネルの更新
+    document.getElementById("turn-display").innerText = currentTurn === "black" ? "黒 (先手)" : "白 (後手)";
+    document.getElementById("tp-black").innerText = blackSoulPoints;
+    document.getElementById("gauge-black").style.width = Math.min(100, (blackSoulPoints % 20 / 20) * 100) + "%";
+    document.getElementById("tp-white").innerText = whiteSoulPoints;
+    document.getElementById("gauge-white").style.width = Math.min(100, (whiteSoulPoints % 20 / 20) * 100) + "%";
+
+    let evoText = "信徒";
+    if (saviorCount === 1) evoText = "教信者";
+    else if (saviorCount === 2) evoText = "凶獣";
+    else if (saviorCount >= 3) evoText = "終末の獣";
+    document.getElementById("evolution-status").innerText = evoText;
+
+    if (activeSavior) {
+      if (activeSavior.pendingCollapse) {
+        document.getElementById("savior-status").innerText = "次ターン縮退予定";
+      } else {
+        document.getElementById("savior-status").innerText = `${activeSavior.team === "black" ? "黒" : "白"}降臨中 (残り${activeSavior.turnsLeft}ターン)`;
+      }
+    } else {
+      document.getElementById("savior-status").innerText = "未降臨";
+    }
+
+    // 盤面復元
+    if (state.board) {
+      deselectAll();
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cell = getCell(r, c);
+          const cellState = state.board[r][c];
+
+          // 縮退状態の同期
+          if (cellState.collapsed) {
+            cell.classList.add("collapsed");
+          } else {
+            cell.classList.remove("collapsed");
+          }
+
+          // 駒の再配置
+          cell.innerHTML = "";
+          if (cellState.piece) {
+            const piece = document.createElement("div");
+            piece.classList.add("piece", cellState.piece.color);
+            piece.dataset.type = cellState.piece.type;
+            piece.dataset.color = cellState.piece.color;
+            piece.dataset.label = cellState.piece.label;
+
+            // 信徒系の表示ラベルの進化反映
+            if (cellState.piece.type === "believer") {
+              piece.innerText = evoText.substring(0, 1);
+            } else {
+              piece.innerText = cellState.piece.label;
+            }
+
+            cell.appendChild(piece);
+          }
+        }
+      }
     }
   }
 
-  window.addEventListener("beforeunload", deleteRoomOnUnload);
-  window.addEventListener("pagehide", deleteRoomOnUnload);
-
-  const offlineBtn = document.getElementById("btn-offline-mode");
+  // ----------------------------------------------------
+  // ロビー・ルーム管理ロジック
+  // ----------------------------------------------------
   const createBtn = document.getElementById("btn-create-room");
   const joinBtn = document.getElementById("btn-join-room");
-  const deleteRoomBtn = document.getElementById("btn-delete-room");
 
-  if (offlineBtn) {
-    offlineBtn.addEventListener("click", () => {
-      isOfflineMode = true;
-      currentRoomId = null;
-      myColor = null;
-
-      resetGameState();
-      document.getElementById("lobby-modal").style.display = "none";
-      alert("オフライン対戦を開始します。先手（黒）からプレイしてください。");
-    });
-  }
-
+  // 1. ルーム作成 (先手: 黒 になる)
   if (createBtn) {
     createBtn.addEventListener("click", async () => {
       if (!supabase2) return alert("Supabaseの初期化に失敗しています");
@@ -718,7 +705,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const pass = document.getElementById("create-room-pass").value.trim();
       if (!code || !pass) return alert("部屋コードとパスワードを入力してください");
 
-      isOfflineMode = false;
+      console.log(`[LOG] 部屋を作成中... コード: ${code}`);
+
       const initialState = getInitialGameState();
 
       const { data, error } = await supabase2
@@ -734,6 +722,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .single();
 
       if (error) {
+        console.error("[LOG] 部屋の作成に失敗しました:", error);
         alert("部屋の作成に失敗しました (重複している可能性があります)");
         return;
       }
@@ -741,15 +730,17 @@ document.addEventListener("DOMContentLoaded", () => {
       currentRoomId = data.id;
       myColor = "black";
 
+      console.log("[LOG] 部屋を作成しました:", data);
+      console.log(`[LOG] ルームID: ${data.id}`);
+      console.log(`[LOG] 割り当てられた陣営: ${myColor} (先手)`);
+
       alert(`部屋を作成しました！\n部屋コード: ${data.room_code}\nあなたは【黒 (先手)】です。相手の入室を待っています...`);
       document.getElementById("lobby-modal").style.display = "none";
-
-      updateBoardRotation();
-      applyGameState(data.game_state);
       subscribeToRoomUpdates(currentRoomId);
     });
   }
 
+  // 2. ルーム参加 (後手: 白 になる)
   if (joinBtn) {
     joinBtn.addEventListener("click", async () => {
       if (!supabase2) return alert("Supabaseの初期化に失敗しています");
@@ -758,7 +749,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const pass = document.getElementById("join-room-pass").value.trim();
       if (!code || !pass) return alert("部屋コードとパスワードを入力してください");
 
-      isOfflineMode = false;
+      console.log(`[LOG] 部屋を検索中... コード: ${code}`);
 
       const { data, error } = await supabase2
         .from('rooms')
@@ -768,11 +759,13 @@ document.addEventListener("DOMContentLoaded", () => {
         .single();
 
       if (error || !data) {
+        console.error("[LOG] 部屋の検索に失敗しました:", error);
         alert("部屋が見つからないか、パスワードが間違っています");
         return;
       }
 
       if (data.white_present) {
+        console.warn("[LOG] 部屋が満員です");
         alert("この部屋はすでに満員です");
         return;
       }
@@ -785,165 +778,59 @@ document.addEventListener("DOMContentLoaded", () => {
       currentRoomId = data.id;
       myColor = "white";
 
+      console.log("[LOG] 部屋に参加しました:", data);
+      console.log(`[LOG] ルームID: ${data.id}`);
+      console.log(`[LOG] 割り当てられた陣営: ${myColor} (後手)`);
+
       alert(`部屋に参加しました！あなたは【白 (後手)】です。`);
       document.getElementById("lobby-modal").style.display = "none";
 
-      updateBoardRotation();
       applyGameState(data.game_state);
       subscribeToRoomUpdates(currentRoomId);
     });
   }
 
-  if (deleteRoomBtn) {
-    deleteRoomBtn.addEventListener("click", async () => {
-      if (isOfflineMode) {
-        resetGameState();
-        alert("対戦を終了しました。");
-        document.getElementById("lobby-modal").style.display = "flex";
-      } else {
-        await deleteCurrentRoom();
-      }
-    });
-  }
-
-  async function deleteCurrentRoom() {
-    if (!currentRoomId || !supabase2) {
-      alert("削除するアクティブなルームがありません。");
-      document.getElementById("lobby-modal").style.display = "flex";
-      return;
-    }
-
-    const roomIdToDelete = currentRoomId;
-    currentRoomId = null;
-    myColor = null;
-
-    const { error } = await supabase2
-      .from('rooms')
-      .delete()
-      .eq('id', roomIdToDelete);
-
-    if (error) {
-      alert("ルームの削除に失敗しました。");
-    } else {
-      alert("対戦が終了したため、ルームを消去しました。");
-      document.getElementById("lobby-modal").style.display = "flex";
-    }
-  }
-
-  function updateBoardRotation() {
-    const boardContainer = document.querySelector(".board-container");
-    if (!boardContainer) return;
-
-    if (isOfflineMode) {
-      if (currentTurn === "black") {
-        boardContainer.classList.add("rotated");
-      } else {
-        boardContainer.classList.remove("rotated");
-      }
-    } else {
-      if (myColor === "black") {
-        boardContainer.classList.add("rotated");
-      } else {
-        boardContainer.classList.remove("rotated");
-      }
-    }
-  }
-
+  // ----------------------------------------------------
+  // Realtime リアルタイム同期ロジック
+  // ----------------------------------------------------
   function subscribeToRoomUpdates(roomId) {
     if (!supabase2) return;
 
+    console.log(`[LOG] Realtime 購読を開始します... ルームID: ${roomId}`);
     supabase2
       .channel(`room:${roomId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
         (payload) => {
+          console.log("[LOG] 相手の操作（盤面更新）を受信しました:", payload.new);
           const newGameState = payload.new.game_state;
           applyGameState(newGameState);
         }
       )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
-        () => {
-          if (currentRoomId) {
-            alert("対戦相手が離脱したため、ルームが削除されました。ロビーに戻ります。");
-            currentRoomId = null;
-            myColor = null;
-            document.getElementById("lobby-modal").style.display = "flex";
-          }
-        }
-      )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[LOG] Realtime 接続ステータス: ${status}`);
+      });
   }
 
   async function broadcastGameState() {
     if (!currentRoomId || !supabase2) return;
 
     const gameState = getCurrentGameState();
+    console.log("[LOG] 盤面更新データを送信中...", gameState);
 
-    await supabase2
+    const { error } = await supabase2
       .from('rooms')
       .update({
         game_state: gameState,
         updated_at: new Date()
       })
       .eq('id', currentRoomId);
-  }
 
-  function getCurrentGameState() {
-    const pieces = [];
-    document.querySelectorAll(".cell").forEach(cell => {
-      const piece = cell.querySelector(".piece");
-      if (piece) {
-        pieces.push({
-          row: cell.dataset.row,
-          col: cell.dataset.col,
-          label: piece.dataset.label,
-          color: piece.dataset.color,
-          type: piece.dataset.type
-        });
-      }
-    });
-
-    return {
-      currentTurn,
-      blackSoulPoints,
-      whiteSoulPoints,
-      saviorCount,
-      activeSavior,
-      blackBelieverDefeated,
-      whiteBelieverDefeated,
-      collapseLevel,
-      pieces
-    };
-  }
-
-  function applyGameState(state) {
-    if (!state) return;
-
-    currentTurn = state.currentTurn;
-    blackSoulPoints = state.blackSoulPoints;
-    whiteSoulPoints = state.whiteSoulPoints;
-    saviorCount = state.saviorCount;
-    activeSavior = state.activeSavior;
-    blackBelieverDefeated = state.blackBelieverDefeated;
-    whiteBelieverDefeated = state.whiteBelieverDefeated;
-    collapseLevel = state.collapseLevel;
-
-    document.getElementById("turn-display").innerText = currentTurn === "black" ? "黒 (先手)" : "白 (後手)";
-    document.getElementById("tp-black").innerText = blackSoulPoints;
-    document.getElementById("tp-white").innerText = whiteSoulPoints;
-
-    updateBoardRotation();
-
-    document.querySelectorAll(".cell").forEach(c => c.innerHTML = "");
-    state.pieces.forEach(p => {
-      placePiece(p.row, p.col, p.label, p.color, p.type);
-    });
-  }
-
-  function getInitialGameState() {
-    return getCurrentGameState();
+    if (error) {
+      console.error("[LOG] 盤面データの送信に失敗しました:", error);
+    } else {
+      console.log("[LOG] 盤面データを送信しました");
+    }
   }
 });
