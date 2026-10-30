@@ -505,6 +505,15 @@ body {
     margin-top: 5px;
   }
 
+  /* スマホ版では回転させず、常に正面固定 */
+  .board-container.rotated {
+    transform: none !important;
+  }
+
+  .board-container.rotated .piece {
+    transform: none !important;
+  }
+
   .modal-content {
     padding: 15px 10px;
   }
