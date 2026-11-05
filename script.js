@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function getPieceLabel(type) {
     const labels = {
       demon_king: "魔", angel: "天", fallen: "堕", inquisitor: "審",
-      knight: "騎", reaper: "死", dragon: "龍王", stareater: "星喰い",
+      knight: "騎", reaper: "死", dragon: "龍", stareater: "星",
       believer: "信", fanatic: "教", beast: "凶", apocalypse_beast: "獣"
     };
     return labels[type] || "";
