@@ -159,6 +159,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (dr === -1 && absC === 1) return "red";
         return null;
 
+      case "fanatic":
+        if ((dc === 0 && dr >= -2 && dr < -1)) return "green";
+        if ((dc === 0 && dr >= -1 && dr < 0)) return "yellow";
+        if ((absR === 1 && absC === 1)) return "red";
+        return null;
+
       case "beast":
         if ((dr >= -2 && dr < 0 && dc === 0) || (dr === 1 && dc === 0) || (dr === 0 && absC === 1)) return "yellow";
         if (absR === 1 && absC === 1) return "red";
@@ -444,7 +450,10 @@ document.addEventListener("DOMContentLoaded", () => {
               else break;
             }
           }
-          [-1, 0, 1].forEach(dc => checkTargetCell(r + dirForward, c + dc, color, false, true));
+          // 正面1マス：移動・捕獲両用（空きマスは上のループで移動可、敵駒はここで捕獲可）
+          checkTargetCell(r + dirForward, c, color, false, true);
+          // 斜め1マス（前後4方向）：捕獲のみ
+          [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dr, dc]) => checkTargetCell(r + dr, c + dc, color, false, true));
 
         } else if (saviorCount === 2) {
           for (let step = 1; step <= 2; step++) {
